@@ -1,0 +1,66 @@
+###############################################################################
+###############################################################################
+################################# GAIA Package ################################
+###############################################################################
+###############################################################################
+
+setwd("C:/Users/Juanma/Desktop/JuanMa/IMBECU/CNVs")
+
+library("TCGAbiolinks")
+library(gaia)
+
+### Get the DATA ###
+
+### Prostate ###
+
+query_prad <- GDCquery(project = "TCGA-PRAD",
+                       data.category = "Copy Number Variation",
+                       data.type = "Masked Copy Number Segment",
+                       legacy = FALSE,
+                       sample.type = c("Primary solid Tumor"))
+
+GDCdownload(query_prad)
+
+prad<- GDCprepare(query_prad,
+                  save = TRUE,
+                  save.filename = "prad.cnv.hg38.rda")
+
+###############################################################################
+############################## Marker Descriptor Matrix #######################
+###############################################################################
+
+
+## getting Probes- Metadata ##
+
+# platform Affymetrix Genome-Wide Human SNP Array 6.0
+
+url<- "ftp://ftp.broadinstitute.org/pub/GISTIC2.0/hg19_support/CNV.hg19.bypos.111213.txt"
+download.file(url = url, destfile = "./probes-metadata-hg19.txt")
+
+probes_metadata<- read.csv("probes-metadata-hg19.txt", sep = "\t")
+
+markers_obj <- load_markers(probes_metadata)
+
+###############################################################################
+########################  Aberrant Region Descriptor Matrix   #################
+###############################################################################
+
+load("prad.cnv.hg38.rda")
+
+synthCNV_Matrix<- as.data.frame(data)
+
+a<- ifelse(synthCNV_Matrix$Segment_Mean>0.2,1,0)
+b<- ifelse(synthCNV_Matrix$Segment_Mean<(-0.2),-1,0)
+c<- a+b
+synthCNV_Matrix$Aberrationkind<- c
+#synthCNV_Matrix<- synthCNV_Matrix[,c(1,2,3,4,5,7)]
+#colnames(synthCNV_Matrix)<- c("Sample.Name", "Chromosome", "Start", "End", "Num.of.Markers", "Aberration")
+
+cnv_obj<- load_cnv(synthCNV_Matrix, markers_obj, 100)
+  
+## Run GAIA ##
+
+runGAIA(cnv_obj, markers_obj, output_file_name="", chromosomes = 1, "CompleteResults.txt")
+
+
+
