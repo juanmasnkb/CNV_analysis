@@ -34,11 +34,22 @@ prad<- GDCprepare(query_prad,
 
 # platform Affymetrix Genome-Wide Human SNP Array 6.0
 
-url<- "ftp://ftp.broadinstitute.org/pub/GISTIC2.0/hg19_support/CNV.hg19.bypos.111213.txt"
-download.file(url = url, destfile = "./probes-metadata-hg19.txt")
+url<- "https://gdc.cancer.gov/files/public/file/snp6.na35.liftoverhg38.txt.zip"
+temp <- tempfile()
+download.file(url = url, temp)
+unzip(temp)
+probes_metadata<- read.csv("snp6.na35.liftoverhg38.txt", sep = "\t",as.is = TRUE)
+probes_metadata=probes_metadata[probes_metadata[,"freqcnv"]==FALSE,]
+colnames(probes_metadata)[1:3] <- c("Probe.Name", "Chromosome", "Start")
 
-probes_metadata<- read.csv("probes-metadata-hg19.txt", sep = "\t")
+probes_metadata[probes_metadata$Chromosome == "X","Chromosome"] <- 23
+probes_metadata[probes_metadata$Chromosome == "Y","Chromosome"] <- 24
+probes_metadata$Chromosome <- as.integer(probes_metadata$Chromosome)
 
+# Removed duplicates
+
+markerID <- paste(probes_metadata$Chromosome,probes_metadata$Start, sep = ":")
+probes_metadata <- probes_metadata[!duplicated(markerID),]
 markers_obj <- load_markers(probes_metadata)
 
 ###############################################################################
@@ -49,18 +60,32 @@ load("prad.cnv.hg38.rda")
 
 synthCNV_Matrix<- as.data.frame(data)
 
-a<- ifelse(synthCNV_Matrix$Segment_Mean>0.2,1,0)
-b<- ifelse(synthCNV_Matrix$Segment_Mean<(-0.2),-1,0)
-c<- a+b
-synthCNV_Matrix$Aberrationkind<- c
-#synthCNV_Matrix<- synthCNV_Matrix[,c(1,2,3,4,5,7)]
-#colnames(synthCNV_Matrix)<- c("Sample.Name", "Chromosome", "Start", "End", "Num.of.Markers", "Aberration")
+load("prad.cnv.hg38.rda")
+synthCNV_Matrix<- data
 
-cnv_obj<- load_cnv(synthCNV_Matrix, markers_obj, 100)
+synthCNV_Matrix <- cbind(synthCNV_Matrix,Label=NA)
+synthCNV_Matrix[synthCNV_Matrix[,"Segment_Mean"] < -0.2,"Label"] <- 1
+synthCNV_Matrix[synthCNV_Matrix[,"Segment_Mean"] > 0.2,"Label"] <- 2
+synthCNV_Matrix <- synthCNV_Matrix[!is.na(synthCNV_Matrix$Label),]
+
+synthCNV_Matrix<- synthCNV_Matrix[,c(7,2,3,4,5,8)]
+colnames(synthCNV_Matrix)<- c("Sample.Name", "Chromosome", "Start", "End", "Num.of.Markers", "Aberration")
+
+#Replace x and y chromosome names
+xidx <- which(synthCNV_Matrix$Chromosome=="X")
+yidx <- which(synthCNV_Matrix$Chromosome=="Y")
+synthCNV_Matrix[xidx,"Chromosome"] <- 23
+synthCNV_Matrix[yidx,"Chromosome"] <- 24
+synthCNV_Matrix$Chromosome <- sapply(synthCNV_Matrix$Chromosome,as.integer)
+
+cnvID <- paste(synthCNV_Matrix$Chromosome,synthCNV_Matrix$Start, sep = ":")
+synthCNV_Matrix<- synthCNV_Matrix[markerID%in%cnvID,]
+
+cnv_obj<- load_cnv(synthCNV_Matrix, markers_obj, 373)
   
 ## Run GAIA ##
 
-runGAIA(cnv_obj, markers_obj, output_file_name="", chromosomes = 1, "CompleteResults.txt")
+runGAIA(cnv_obj, markers_obj, "Results.txt")
 
 
 
