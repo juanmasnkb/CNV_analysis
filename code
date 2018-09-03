@@ -91,7 +91,11 @@ colnames(synthCNV_Matrix)<- c("Sample.Name", "Chromosome", "Start", "End", "Num.
 cnvID <- paste(synthCNV_Matrix$Chromosome,synthCNV_Matrix$Start, sep = ":")
 synthCNV_Matrix<- synthCNV_Matrix[cnvID%in%markerID,]
 
-cnv_obj<- load_cnv(synthCNV_Matrix, markers_obj, 373)
+#synthCNV_Matrix$Num.of.Markers<- synthCNV_Matrix$End - synthCNV_Matrix$Start
+
+#length(table(synthCNV_Matrix$Sample.Name)) ## number of samples
+
+cnv_obj<- load_cnv(synthCNV_Matrix, markers_obj, 501)
   
 ## Run GAIA ##
 
