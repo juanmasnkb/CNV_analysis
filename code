@@ -8,6 +8,7 @@ setwd("C:/Users/Juanma/Desktop/JuanMa/IMBECU/CNVs")
 
 library("TCGAbiolinks")
 library(gaia)
+library("GEOquery")
 
 ### Get the DATA ###
 
@@ -34,24 +35,15 @@ prad<- GDCprepare(query_prad,
 
 # platform Affymetrix Genome-Wide Human SNP Array 6.0
 
-## for hg19 ##
-
-#url<- "ftp://ftp.broadinstitute.org/pub/GISTIC2.0/hg19_support/CNV.hg19.bypos.111213.txt"
-#download.file(url = url, destfile = "./probes-metadata-hg19.txt")
-
-#probes_metadata<- read.csv("probes-metadata-hg19.txt", sep = "\t")
-
-#markers_obj <- load_markers(probes_metadata)
-
 ## for hg38 ##
 
-url<- "https://gdc.cancer.gov/files/public/file/snp6.na35.liftoverhg38.txt.zip"
-temp <- tempfile()
-download.file(url = url, temp)
-unzip(temp)
-probes_metadata<- read.csv("snp6.na35.liftoverhg38.txt", sep = "\t",as.is = TRUE)
+url<- "https://api.gdc.cancer.gov/data/a1c5c348-7929-453f-8d67-da58601ef040"
+#download.file(url = url, "snp6.na35.remap.hg38.subset.txt.gz")
+#gunzip("snp6.na35.remap.hg38.subset.txt.gz", "snp6.na35.remap.hg38.subset.txt")
+probes_metadata<- read.csv("snp6.na35.remap.hg38.subset.txt", sep = "\t",as.is = TRUE)
 probes_metadata<- probes_metadata[probes_metadata[,"freqcnv"]==FALSE,]
 colnames(probes_metadata)[1:3] <- c("Probe.Name", "Chromosome", "Start")
+#probes_metadata<- probes_metadata[,c(1:3)]
 
 probes_metadata[probes_metadata$Chromosome == "X","Chromosome"] <- 23
 probes_metadata[probes_metadata$Chromosome == "Y","Chromosome"] <- 24
@@ -88,15 +80,47 @@ synthCNV_Matrix$Chromosome <- sapply(synthCNV_Matrix$Chromosome,as.integer)
 synthCNV_Matrix<- synthCNV_Matrix[,c(1,2,3,4,5,8)]
 colnames(synthCNV_Matrix)<- c("Sample.Name", "Chromosome", "Start", "End", "Num.of.Markers", "Aberration")
 
-cnvID <- paste(synthCNV_Matrix$Chromosome,synthCNV_Matrix$Start, sep = ":")
-synthCNV_Matrix<- synthCNV_Matrix[cnvID%in%markerID,]
-
-#synthCNV_Matrix$Num.of.Markers<- synthCNV_Matrix$End - synthCNV_Matrix$Start
-
 #length(table(synthCNV_Matrix$Sample.Name)) ## number of samples
 
 cnv_obj<- load_cnv(synthCNV_Matrix, markers_obj, 501)
-  
+
 ## Run GAIA ##
 
 runGAIA(cnv_obj, markers_obj, "results.txt")
+
+##############################################################################
+##############################################################################
+############################# CNTools Package ################################
+##############################################################################
+##############################################################################
+
+library(CNTools)
+library(dplyr)
+library(biomaRt)
+
+setwd("C:/Users/Juanma/Desktop/JuanMa/IMBECU/CNVs")
+
+load("brca.cnv.hg19.rda")
+data<- as.data.frame(data)
+colnames(data)<- c("ID", "chrom", "loc.start", "loc.end", "num.mark", "seg.mean")
+
+cnv_brca<- CNSeg(data)  ##output of DNACopy segmentation data
+
+#getRS: method that convert segment data into reduced segment matrix #
+
+########### RD by regions ###########
+
+reducedsegByRegion <- getRS(cnv_brca, by = "region", imput = FALSE, XY = FALSE, what = "mean")
+
+reducedseg <- rs(reducedsegByRegion)
+
+########### RD by GENES ###########
+          ## HSP INFO ##
+###################################
+
+hsp_info_hg38<- read.csv("hspUCSCcanonicaltranscript_hg38.txt", header = TRUE, sep = "\t")
+## read.csv("hspinfo_38.txt", sep="\t") ## tabla biomart
+
+rdByGene <- getRS(cnv_he_brca, by = "gene", imput = FALSE, XY = FALSE, geneMap = hspinfo_38, what = "mean")
+
+reducedsegBygene <- rs(rdByGene)
