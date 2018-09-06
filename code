@@ -100,17 +100,17 @@ library(biomaRt)
 
 setwd("C:/Users/Juanma/Desktop/JuanMa/IMBECU/CNVs")
 
-load("brca.cnv.hg19.rda")
+load("prad.cnv.hg38.rda")
 data<- as.data.frame(data)
 colnames(data)<- c("ID", "chrom", "loc.start", "loc.end", "num.mark", "seg.mean")
 
-cnv_brca<- CNSeg(data)  ##output of DNACopy segmentation data
+cnv<- CNSeg(data)  ##output of DNACopy segmentation data
 
 #getRS: method that convert segment data into reduced segment matrix #
 
 ########### RD by regions ###########
 
-reducedsegByRegion <- getRS(cnv_brca, by = "region", imput = FALSE, XY = FALSE, what = "mean")
+reducedsegByRegion <- getRS(cnv, by = "region", imput = FALSE, XY = FALSE, what = "mean")
 
 reducedseg <- rs(reducedsegByRegion)
 
@@ -118,9 +118,22 @@ reducedseg <- rs(reducedsegByRegion)
           ## HSP INFO ##
 ###################################
 
-hsp_info_hg38<- read.csv("hspUCSCcanonicaltranscript_hg38.txt", header = TRUE, sep = "\t")
-## read.csv("hspinfo_38.txt", sep="\t") ## tabla biomart
+## get hsp_info38 ##
 
-rdByGene <- getRS(cnv_he_brca, by = "gene", imput = FALSE, XY = FALSE, geneMap = hspinfo_38, what = "mean")
+tabla_hsp<- read.csv("tabla_hsp.txt", header = TRUE)
+symbol<- tabla_hsp$Symbol
+
+ensembl=useMart("ENSEMBL_MART_ENSEMBL")
+ensembl = useMart("ensembl",dataset="hsapiens_gene_ensembl")
+results38 <- getBM(attributes =c("chromosome_name","entrezgene", "hgnc_symbol", "start_position", "end_position") ,filters = "hgnc_symbol", values = symbol, mart = ensembl)
+#remove duplicated
+results38<- results38[!duplicated(results38$hgnc_symbol),]
+results38<- results38[,c(1,4,5,2,3)]
+colnames(results38)<- c("chrom","start","end","geneid","genename")
+
+##write.csv(results38, "results38.txt", row.names = FALSE)
+## results38<- read.csv("results38.txt", header = TRUE) ## tabla biomart
+
+rdByGene <- getRS(cnv, by = "gene", imput = FALSE, XY = FALSE, geneMap = results38, what = "mean")
 
 reducedsegBygene <- rs(rdByGene)
